@@ -18,45 +18,70 @@ OUTPUT_CHARACTERS = Path("output_characters.txt")
 OUTPUT_WORDS = Path("output_words.txt")
 OUTPUT_PHRASES = Path("output_phrases.txt")
 
+DEBUG_BASELINE_CHARACTERS = Path("debug_baseline_characters.txt")
+
 # ===========================================
 # Helpers
 # ===========================================
 
 CHINESE_CHAR_RE = re.compile(r'[\u4e00-\u9fff]')
 
-def read_text(path: Path) -> str:
-    """Read entire file as UTF-8, or return empty if missing."""
+def require_file(path: Path) -> None:
+    """Fail fast if a required input file is missing."""
     if not path.exists():
-        return ""
+        raise FileNotFoundError(
+            f"Missing required file: {path} (resolved to: {path.resolve()})\n"
+            f"Tip: Run this script from the folder containing your .txt files."
+        )
+
+def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 def read_lines(path: Path) -> List[str]:
-    """Read non-empty stripped lines."""
     text = read_text(path)
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 def extract_chinese_chars(text: str) -> List[str]:
-    """Return a list of all Chinese characters in the input text."""
     return CHINESE_CHAR_RE.findall(text)
 
 def chinese_chars_from_lines(lines: List[str]) -> Set[str]:
-    """Return a set of Chinese characters across all lines."""
     chars: Set[str] = set()
     for line in lines:
         chars.update(extract_chinese_chars(line))
     return chars
 
 def normalize_unit(text: str) -> str:
-    """
-    Keep only Chinese characters in a 'unit' (word or phrase).
-    This lets you have messy lines but still compare on pure Chinese.
-    """
     return "".join(extract_chinese_chars(text))
 
 # ===========================================
-# Load all prior reference data
+# Require input files (fail fast)
 # ===========================================
+for p in [
+    PRIOR_ANKI_CHARACTERS,
+    PRIOR_LESSON_CHARACTERS,
+    PRIOR_LESSON_WORDS,
+    PRIOR_LESSON_PHRASES,
+    NEW_LESSON_WORDS,
+    NEW_LESSON_PHRASES,
+    NEW_LESSON_DUMP,
+]:
+    require_file(p)
 
+print("Reading files from:")
+for p in [
+    PRIOR_ANKI_CHARACTERS,
+    PRIOR_LESSON_CHARACTERS,
+    PRIOR_LESSON_WORDS,
+    PRIOR_LESSON_PHRASES,
+    NEW_LESSON_WORDS,
+    NEW_LESSON_PHRASES,
+    NEW_LESSON_DUMP,
+]:
+    print(f"  - {p} -> {p.resolve()}")
+
+# ===========================================
+# Load all data
+# ===========================================
 prior_anki_lines = read_lines(PRIOR_ANKI_CHARACTERS)
 prior_lesson_char_lines = read_lines(PRIOR_LESSON_CHARACTERS)
 prior_lesson_word_lines = read_lines(PRIOR_LESSON_WORDS)
@@ -69,38 +94,33 @@ new_lesson_dump_text = read_text(NEW_LESSON_DUMP)
 # ===========================================
 # 1) Identify NEW CHARACTERS
 # ===========================================
-
-# Characters already known
 baseline_characters: Set[str] = set()
 baseline_characters.update(chinese_chars_from_lines(prior_anki_lines))
 baseline_characters.update(chinese_chars_from_lines(prior_lesson_char_lines))
 baseline_characters.update(chinese_chars_from_lines(prior_lesson_word_lines))
 baseline_characters.update(chinese_chars_from_lines(prior_lesson_phrase_lines))
 
-# Characters from new lesson dump + explicit new words + phrases files
 new_chars: Set[str] = set()
 new_chars.update(extract_chinese_chars(new_lesson_dump_text))
 new_chars.update(chinese_chars_from_lines(new_lesson_word_lines))
 new_chars.update(chinese_chars_from_lines(new_lesson_phrase_lines))
 
-# Only characters not seen before
 new_unique_chars = sorted(new_chars - baseline_characters)
 
-# Write one character per line
 OUTPUT_CHARACTERS.write_text("\n".join(new_unique_chars), encoding="utf-8")
+
+# Write debug baseline so you can verify what the script thinks you already know
+DEBUG_BASELINE_CHARACTERS.write_text("\n".join(sorted(baseline_characters)), encoding="utf-8")
 
 # ===========================================
 # 2) Identify NEW WORDS
 # ===========================================
-
-# Words already known from Anki and prior lessons
 baseline_words: Set[str] = set()
 for line in prior_anki_lines + prior_lesson_word_lines:
     w = normalize_unit(line)
     if w:
         baseline_words.add(w)
 
-# Words from new lesson — deduped, normalized, compared
 seen_new_words: Set[str] = set()
 new_unique_words: List[str] = []
 
@@ -112,7 +132,6 @@ for line in new_lesson_word_lines:
         continue
     if w in seen_new_words:
         continue
-
     seen_new_words.add(w)
     new_unique_words.append(w)
 
@@ -121,15 +140,12 @@ OUTPUT_WORDS.write_text("\n".join(new_unique_words), encoding="utf-8")
 # ===========================================
 # 3) Identify NEW PHRASES
 # ===========================================
-
-# Phrases already known from prior lessons
 baseline_phrases: Set[str] = set()
 for line in prior_lesson_phrase_lines:
     p = normalize_unit(line)
     if p:
         baseline_phrases.add(p)
 
-# Phrases from new lesson — deduped, normalized, compared
 seen_new_phrases: Set[str] = set()
 new_unique_phrases: List[str] = []
 
@@ -141,17 +157,19 @@ for line in new_lesson_phrase_lines:
         continue
     if p in seen_new_phrases:
         continue
-
     seen_new_phrases.add(p)
     new_unique_phrases.append(p)
 
 OUTPUT_PHRASES.write_text("\n".join(new_unique_phrases), encoding="utf-8")
 
 # ===========================================
-# Console summary
+# Console summary + sanity checks
 # ===========================================
-
 print("Done.")
+print(f"- Baseline characters: {len(baseline_characters)} (debug written to {DEBUG_BASELINE_CHARACTERS})")
 print(f"- New characters written to: {OUTPUT_CHARACTERS} ({len(new_unique_chars)} chars)")
 print(f"- New words written to: {OUTPUT_WORDS} ({len(new_unique_words)} words)")
 print(f"- New phrases written to: {OUTPUT_PHRASES} ({len(new_unique_phrases)} phrases)")
+
+if new_unique_chars:
+    print(f"- Sample new chars (first 30): {''.join(new_unique_chars[:30])}")

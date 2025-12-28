@@ -137,32 +137,10 @@ output_phrases.txt
 
 These contain the new characters, words, and phrases for this lesson.
 
----
-
-## Workflow Summary
-
-1. **Maintain prior files**
-
-   - Add everything you have already learned to:
-     - `prior_anki_characters.txt`
-     - `prior_lesson_characters.txt`
-     - `prior_lesson_words.txt`
-     - `prior_lesson_phrases.txt`
-
-2. **Prepare new lesson inputs**
-
-   - Extract new words by hand into `new_lesson_words.txt` (one per line).
-   - Paste the full lesson text into `new_lesson_dump.txt`.
-   - Generate phrases:
-     - Give `new_lesson_dump.txt` to an AI and ask it:
-       - To extract useful Chinese phrases from the text.
-       - To return them as a newline-delimited list.
-     - Paste the result into `new_lesson_phrases.txt`.
-
-3. **Run the script**
-
-   - Execute `process_lessons.py`.
-
-4. **Use the outputs**
+5. **Use the outputs**
 
    - Copy `output_characters.txt`, `output_words.txt`, and `output_phrases.txt` into your Google Sheets。 Leave a comment at the start of the block for which lesson number the block comes from.
+
+6. **Copy into Anki and add Audio**
+
+   - Export the sheets as .tsv's and bring them into Anki. Because the decks are split between visual and audio you'll have to move the visual cards from the audio deck to the visual deck. Once all the cards are situated, add audio to them with the Anki extension.
